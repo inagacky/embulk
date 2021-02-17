@@ -1,3 +1,19 @@
+/*
+ * Copyright 2016 The Embulk project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.embulk.standards;
 
 import static org.embulk.standards.JsonParserPlugin.InvalidEscapeStringPolicy.PASSTHROUGH;
@@ -17,21 +33,22 @@ import com.google.common.collect.ImmutableList;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.embulk.EmbulkTestRuntime;
 import org.embulk.config.ConfigSource;
 import org.embulk.spi.DataException;
-import org.embulk.spi.Exec;
 import org.embulk.spi.FileInput;
 import org.embulk.spi.Schema;
 import org.embulk.spi.TestPageBuilderReader.MockPageOutput;
-import org.embulk.spi.json.JsonParser;
 import org.embulk.spi.time.Timestamp;
-import org.embulk.spi.time.TimestampParser;
-import org.embulk.spi.util.InputStreamFileInput;
 import org.embulk.spi.util.Pages;
+import org.embulk.util.config.ConfigMapperFactory;
+import org.embulk.util.file.InputStreamFileInput;
+import org.embulk.util.json.JsonParser;
+import org.embulk.util.timestamp.TimestampFormatter;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -54,9 +71,10 @@ public class TestJsonParserPlugin {
 
     @Test
     public void checkDefaultValues() {
-        ConfigSource config = Exec.newConfigSource();
+        ConfigSource config = CONFIG_MAPPER_FACTORY.newConfigSource();
 
-        JsonParserPlugin.PluginTask task = config.loadConfig(JsonParserPlugin.PluginTask.class);
+        final JsonParserPlugin.PluginTask task =
+                CONFIG_MAPPER_FACTORY.createConfigMapper().map(config, JsonParserPlugin.PluginTask.class);
         assertEquals(false, task.getStopOnInvalidRecord());
         assertEquals(JsonParserPlugin.InvalidEscapeStringPolicy.PASSTHROUGH, task.getInvalidEscapeStringPolicy());
     }
@@ -469,18 +487,20 @@ public class TestJsonParserPlugin {
     }
 
     private Schema newSchema() {
-        return plugin.newSchema(config.loadConfig(JsonParserPlugin.PluginTask.class));
+        return plugin.newSchema(CONFIG_MAPPER_FACTORY.createConfigMapper().map(config, JsonParserPlugin.PluginTask.class));
     }
 
     private static Timestamp toTimestamp(String dateTimeString) {
-        return TIMESTAMP_PARSER.parse(dateTimeString);
+        return Timestamp.ofInstant(TIMESTAMP_FORMATTER.parse(dateTimeString));
     }
 
     private static Value toJson(String json) {
         return JSON_PARSER.parse(json);
     }
 
-    private static final TimestampParser TIMESTAMP_PARSER = TimestampParser.of("java:yyyy-MM-dd HH:mm:ss", "UTC");
+    private static final ConfigMapperFactory CONFIG_MAPPER_FACTORY = ConfigMapperFactory.builder().addDefaultModules().build();
+
+    private static TimestampFormatter TIMESTAMP_FORMATTER = TimestampFormatter.builderWithJava("yyyy-MM-dd HH:mm:ss").build();
 
     private static final JsonParser JSON_PARSER = new JsonParser();
 }
